@@ -1,4 +1,5 @@
 import tensorflow as tf
+import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow_datasets as tfds
 from icecream import ic
@@ -13,8 +14,14 @@ for features in dataset.take(1):
     image, label = features['image'], features['label']
     ic(image.shape)
 
-POP_SIZE = 10
+plt.figure()
+plt.imshow(image)
+plt.title(get_label_name(label))
 
+
+tf.keras.applications.MobileNet()
+
+POP_SIZE = 10
 
 def initialize_population(pop_size):
     return np.array([
