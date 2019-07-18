@@ -6,6 +6,7 @@ import numpy as np
 import tensorflow_datasets as tfds
 from icecream import ic
 from random import randint, gauss
+from time import time
 from tensorflow.keras.preprocessing.image import load_img, img_to_array, save_img
 from tensorflow.keras.applications.resnet50 import (
     ResNet50,
@@ -29,8 +30,8 @@ def show_image(x):
     plt.show()
 
 
-target = 329
 source = 385
+target = 329
 
 img_path = "elephant.jpg"
 img = load_img(img_path, target_size=(224, 224))
@@ -43,15 +44,12 @@ model = ResNet50(weights="imagenet", include_top=True)
 
 def fitness_factory(image, target_class_idx):
     def fitnessfun(candidate):
-        adversarial = image.copy()
+        perturbation = np.zeros((224, 224, 3))
         x, y = int(candidate[0]), int(candidate[1])
-
-        def add8b(a, b):
-            return np.maximum(255.0, np.minimum(0.0, a + b))
-
-        adversarial[x, y, 0] = add8b(adversarial[x, y, 0], candidate[2])  # R
-        adversarial[x, y, 1] = add8b(adversarial[x, y, 1], candidate[3])  # G
-        adversarial[x, y, 2] = add8b(adversarial[x, y, 2], candidate[4])  # B
+        perturbation[x, y, 0] = candidate[2]
+        perturbation[x, y, 1] = candidate[3]
+        perturbation[x, y, 2] = candidate[4]
+        adversarial = np.clip(image + perturbation, 0.0, 255.0)
         # show_image(adversarial)
         # save_img("adversarial.jpg", adversarial)
         adversarial = np.expand_dims(adversarial, axis=0)
@@ -74,42 +72,30 @@ ic(y_hat[0, target])
 # candidate = np.array([1, 1, 100, 100, 100], np.int)
 # fitness(candidate)
 
-
-N_POPULATION = 20
-N_GENERATIONS = 20
+N_POPULATION = 100
+N_GENERATIONS = 500
 
 
 def initialize_population(pop_size):
-    return np.array(
-        [
-            np.array(
-                [
-                    randint(0, 31),
-                    randint(0, 31),
-                    int(gauss(128, 127)),
-                    int(gauss(128, 127)),
-                    int(gauss(128, 127)),
-                ]
-            )
-            for _ in range(pop_size)
-        ]
-    )
+    return np.array([
+        np.array([
+            randint(0, 31),
+            randint(0, 31),
+            int(gauss(128, 127)),
+            int(gauss(128, 127)),
+            int(gauss(128, 127)),
+        ]) for _ in range(pop_size)
+    ])
 
 
 def make_children(parents, pop_size):
     return np.rint(
-        np.array(
-            [
-                parents[randint(0, pop_size - 1)]
-                + 0.5
-                * (
-                    parents[randint(0, pop_size - 1)]
-                    - parents[randint(0, pop_size - 1)]
-                )
-                for _ in range(pop_size)
-            ]
-        )
-    )
+        np.clip(
+            np.array([
+                parents[randint(0, pop_size - 1)] + 0.5 *
+                (parents[randint(0, pop_size - 1)] -
+                 parents[randint(0, pop_size - 1)]) for _ in range(pop_size)
+            ]), 0.0, 255.0))
 
 
 def make_new_generation(g0, c1):
@@ -123,7 +109,9 @@ def make_new_generation(g0, c1):
 
 generation = initialize_population(N_POPULATION)
 
-for _ in range(N_GENERATIONS):
+for i in range(N_GENERATIONS):
+    t0 = time()
     children = make_children(generation, N_POPULATION)
     generation = make_new_generation(generation, children)
-    ic((fitness(generation[0,:]), generation[0,:]))
+    dt = round(time() - t0, 1)
+    ic((i, fitness(generation[0, :]), generation[0, :], dt))
